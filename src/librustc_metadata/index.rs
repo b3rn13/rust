@@ -3,6 +3,7 @@ use crate::schema::*;
 use rustc::hir::def_id::{DefId, DefIndex, DefIndexAddressSpace};
 use rustc_serialize::opaque::Encoder;
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 use std::u32;
 use log::debug;
 
@@ -33,8 +34,8 @@ impl Index<'tcx> {
     }
 
     pub fn record_index(&mut self, item: DefIndex, entry: Lazy<Entry<'tcx>>) {
-        assert!(entry.position < (u32::MAX as usize));
-        let position = entry.position as u32;
+        assert!(entry.position.get() < (u32::MAX as usize));
+        let position = entry.position.get() as u32;
         let space_index = item.address_space().index();
         let array_index = item.as_array_index();
 
@@ -58,7 +59,7 @@ impl Index<'tcx> {
         // ... then the values in the higher range.
         buf.emit_raw_bytes(&self.positions[1]);
         Lazy::from_position_and_meta(
-            pos as usize,
+            NonZeroUsize::new(pos as usize).unwrap(),
             (self.positions[0].len() + self.positions[1].len()) / 4 + 1,
         )
     }
@@ -78,17 +79,17 @@ impl Lazy<[Index<'tcx>]> {
             DefIndexAddressSpace::High => {
                 // This is a DefIndex in the higher range, so find out where
                 // that starts:
-                read_le_u32(&bytes[self.position..]) as usize
+                read_le_u32(&bytes[self.position.get()..]) as usize
             }
         };
 
-        let position = read_le_u32(&bytes[self.position + (1 + i) * 4..]);
+        let position = read_le_u32(&bytes[self.position.get() + (1 + i) * 4..]);
         if position == u32::MAX {
             debug!("Index::lookup: position=u32::MAX");
             None
         } else {
             debug!("Index::lookup: position={:?}", position);
-            Some(Lazy::from_position(position as usize))
+            Some(Lazy::from_position(NonZeroUsize::new(position as usize).unwrap()))
         }
     }
 }
