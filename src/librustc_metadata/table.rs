@@ -13,14 +13,14 @@ use log::debug;
 /// `0`. Whenever an index is visited, we fill in the
 /// appropriate spot by calling `record_position`. We should never
 /// visit the same index twice.
-pub struct Index<'tcx> {
+pub struct Table<'tcx> {
     positions: [Vec<u8>; 2],
     _marker: PhantomData<&'tcx ()>,
 }
 
-impl Index<'tcx> {
+impl Table<'tcx> {
     pub fn new((max_index_lo, max_index_hi): (usize, usize)) -> Self {
-        Index {
+        Table {
             positions: [vec![0; max_index_lo * 4],
                         vec![0; max_index_hi * 4]],
             _marker: PhantomData,
@@ -48,7 +48,7 @@ impl Index<'tcx> {
         write_le_u32(destination, position);
     }
 
-    pub fn write_index(&self, buf: &mut Encoder) -> Lazy<[Self]> {
+    pub fn encode(&self, buf: &mut Encoder) -> Lazy<[Self]> {
         let pos = buf.position();
 
         // First we write the length of the lower range ...
@@ -64,12 +64,12 @@ impl Index<'tcx> {
     }
 }
 
-impl Lazy<[Index<'tcx>]> {
+impl Lazy<[Table<'tcx>]> {
     /// Given the metadata, extract out the offset of a particular
     /// DefIndex (if any).
     #[inline(never)]
     pub fn lookup(&self, bytes: &[u8], def_index: DefIndex) -> Option<Lazy<Entry<'tcx>>> {
-        debug!("Index::lookup: index={:?} len={:?}",
+        debug!("Table::lookup: index={:?} len={:?}",
                def_index,
                self.meta);
 
@@ -83,7 +83,7 @@ impl Lazy<[Index<'tcx>]> {
         };
 
         let position = read_le_u32(&bytes[self.position.get() + (1 + i) * 4..]);
-        debug!("Index::lookup: position={:?}", position);
+        debug!("Table::lookup: position={:?}", position);
         NonZeroUsize::new(position as usize).map(Lazy::from_position)
     }
 }
